@@ -1,0 +1,11 @@
+services:
+  db:
+    image: postgres
+    container_name: refx
+    restart: always
+    environment:
+      POSTGRES_USER: refx_user
+      POSTGRES_PASSWORD: refx-password
+      POSTGRES_DB: refx_db
+    ports:
+      - "5432:5432"
