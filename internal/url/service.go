@@ -8,6 +8,7 @@ import (
 
 	"github.com/amrrdev/refx/db"
 	"github.com/amrrdev/refx/internal/redis"
+	"github.com/amrrdev/refx/internal/snowflake"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -71,5 +72,8 @@ func (s *Service) GetLongUrl(ctx context.Context, shortUrl string) (string, erro
 }
 
 func (s *Service) GenerateCode(longUrl string) string {
-	return "123"
+	gen := snowflake.New(1)
+	id := gen.NextID()
+
+	return EncodeBase62(id)
 }
