@@ -18,20 +18,17 @@ var ErrLongAlreadyExists = errors.New("long url already exists")
 type Service struct {
 	repository Repository
 	cache      *redis.RedisClient
+	snowflake  *snowflake.Generator
 }
 
 func NewService(repo Repository, client *redis.RedisClient) *Service {
-	return &Service{repository: repo, cache: client}
+	return &Service{
+		repository: repo,
+		cache:      client,
+		snowflake:  snowflake.New(1),
+	}
 }
 func (s *Service) CreateShortUrl(ctx context.Context, longUrl string) (db.CreateShortCodeRow, error) {
-	_, err := s.repository.GetByLongUrl(ctx, longUrl)
-	if err == nil {
-		return db.CreateShortCodeRow{}, ErrLongAlreadyExists
-	}
-	if err != pgx.ErrNoRows {
-		return db.CreateShortCodeRow{}, fmt.Errorf("lookup failed: %w", err)
-	}
-
 	shortUrl := s.GenerateCode(longUrl)
 
 	result, err := s.repository.CreateShortUrl(ctx, longUrl, shortUrl)
@@ -72,8 +69,6 @@ func (s *Service) GetLongUrl(ctx context.Context, shortUrl string) (string, erro
 }
 
 func (s *Service) GenerateCode(longUrl string) string {
-	gen := snowflake.New(1)
-	id := gen.NextID()
-
+	id := s.snowflake.NextID()
 	return EncodeBase62(id)
 }
