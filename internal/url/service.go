@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/amrrdev/refx/db"
+	"github.com/amrrdev/refx/internal/redis"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -14,12 +16,12 @@ var ErrLongAlreadyExists = errors.New("long url already exists")
 
 type Service struct {
 	repository Repository
+	cache      *redis.RedisClient
 }
 
-func NewService(repo Repository) *Service {
-	return &Service{repository: repo}
+func NewService(repo Repository, client *redis.RedisClient) *Service {
+	return &Service{repository: repo, cache: client}
 }
-
 func (s *Service) CreateShortUrl(ctx context.Context, longUrl string) (db.CreateShortCodeRow, error) {
 	_, err := s.repository.GetByLongUrl(ctx, longUrl)
 	if err == nil {
@@ -31,11 +33,27 @@ func (s *Service) CreateShortUrl(ctx context.Context, longUrl string) (db.Create
 
 	shortUrl := s.GenerateCode(longUrl)
 
-	return s.repository.CreateShortUrl(ctx, longUrl, shortUrl)
+	result, err := s.repository.CreateShortUrl(ctx, longUrl, shortUrl)
+	if err != nil {
+		return db.CreateShortCodeRow{}, fmt.Errorf("insert failed: %w", err)
+	}
+
+	if s.cache != nil {
+		if err := s.cache.SetLongUrl(ctx, shortUrl, longUrl); err != nil {
+			log.Println("redis cache set failed:", err)
+		}
+	}
+
+	return result, nil
 }
 
 func (s *Service) GetLongUrl(ctx context.Context, shortUrl string) (string, error) {
-	longUrl, err := s.repository.GetLongUrl(ctx, shortUrl)
+	longUrl, err := s.cache.GetLongUrl(ctx, shortUrl)
+	if err == nil {
+		return longUrl, nil
+	}
+
+	longUrl, err = s.repository.GetLongUrl(ctx, shortUrl)
 
 	if err == pgx.ErrNoRows {
 		return "", ErrShortNotFound
@@ -43,6 +61,10 @@ func (s *Service) GetLongUrl(ctx context.Context, shortUrl string) (string, erro
 
 	if err != nil {
 		return "", fmt.Errorf("get long url failed: %w", err)
+	}
+
+	if err := s.cache.SetLongUrl(ctx, shortUrl, longUrl); err != nil {
+		log.Println("redis cache failed:", err)
 	}
 
 	return longUrl, nil

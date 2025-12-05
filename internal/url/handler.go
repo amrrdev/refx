@@ -15,28 +15,20 @@ func NewHandler(service *Service) *Handler {
 }
 
 func (h *Handler) Redirect(ctx *gin.Context) {
-	var body RedirectBody
+	shortCode := ctx.Param("short_code")
 
-	if err := ctx.ShouldBindJSON(&body); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"error": "invalid request body",
-		})
+	if shortCode == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "missing short code"})
 		return
 	}
 
-	longUrl, err := h.service.GetLongUrl(ctx, body.ShortUrl)
+	longUrl, err := h.service.GetLongUrl(ctx, shortCode)
 	if err != nil {
-
 		if err == ErrShortNotFound {
-			ctx.JSON(http.StatusNotFound, gin.H{
-				"error": "short url not found",
-			})
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "short url not found"})
 			return
 		}
-
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"error": "failed to redirect",
-		})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to redirect"})
 		return
 	}
 

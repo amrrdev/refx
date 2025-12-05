@@ -8,6 +8,7 @@ import (
 	"github.com/amrrdev/refx/internal/app"
 	"github.com/amrrdev/refx/internal/config"
 	"github.com/amrrdev/refx/internal/database"
+	"github.com/amrrdev/refx/internal/redis"
 	"github.com/amrrdev/refx/internal/url"
 )
 
@@ -28,12 +29,16 @@ func main() {
 		log.Fatalln(err)
 	}
 
+	client, err := redis.NewClient(config.RedisConnection)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
 	repo := url.NewRepository(database)
-	service := url.NewService(repo)
+	service := url.NewService(repo, client)
 	handler := url.NewHandler(service)
 	r := app.NewServer(handler)
+
 	r.Run()
-
 	defer database.Pool.Close()
-
 }
